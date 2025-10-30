@@ -6,113 +6,198 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         :root {
-            --primary: #4CAF50;
-            --dark: #333;
-            --light: #f4f4f4;
-            --gray: #888;
+            --bg: #000000;
+            --text: #e0e0e0;
+            --accent: #00ff41;
+            --card: #1a1a1a;
+            --border: #333;
+            --code-bg: #0d0d0d;
+        }
+        * {
+            box-sizing: border-box;
         }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             margin: 0;
-            padding: 20px;
-            color: var(--dark);
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Consolas', 'Courier New', monospace;
+            line-height: 1.6;
         }
         .container {
-            max-width: 720px;
-            margin: 40px auto;
-            background: white;
-            padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 25px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
         }
         h1 {
             text-align: center;
-            color: var(--primary);
-            margin-bottom: 1.5rem;
+            color: var(--accent);
+            margin: 0 0 1.5rem;
+            font-size: 1.8rem;
+            text-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
         }
         label {
             display: block;
             margin-top: 1.2rem;
-            font-weight: 600;
-            color: var(--dark);
+            font-weight: bold;
+            color: var(--accent);
         }
-        input[type="password"],
-        input[type="file"] {
+        input[type="password"] {
             width: 100%;
             padding: 12px;
             margin-top: 6px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: inherit;
             font-size: 1rem;
-            transition: border 0.3s;
         }
         input:focus {
             outline: none;
-            border-color: var(--primary);
+            border-color: var(--accent);
+            box-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
         }
-        button {
+
+        /* Source Code Viewer */
+        .source-container {
+            margin-top: 1.5rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .source-header {
+            padding: 10px 15px;
+            background: var(--border);
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .view-btn {
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .view-btn:hover {
+            background: rgba(0, 255, 65, 0.1);
+        }
+        pre {
+            margin: 0;
+            padding: 15px;
+            background: var(--code-bg);
+            color: #00ff41;
+            font-size: 0.92rem;
+            overflow-x: auto;
+            white-space: pre;
+            display: none;
+        }
+        pre.show {
+            display: block;
+        }
+
+        button.convert {
             margin-top: 2rem;
             width: 100%;
             padding: 14px;
             font-size: 1.1rem;
             font-weight: bold;
-            color: white;
-            background: var(--primary);
+            color: #000;
+            background: var(--accent);
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: 0.3s;
         }
-        button:hover {
-            background: #45a049;
+        button.convert:hover {
+            background: #00cc33;
+            transform: translateY(-1px);
         }
-        button:disabled {
-            background: #aaa;
+        button.convert:disabled {
+            background: #555;
             cursor: not-allowed;
+            transform: none;
         }
+
         .progress {
             margin-top: 1.5rem;
             display: none;
         }
         .bar-container {
-            height: 20px;
-            background: #eee;
-            border-radius: 10px;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
             overflow: hidden;
             margin-bottom: 8px;
         }
         .bar {
             height: 100%;
-            background: var(--primary);
+            background: var(--accent);
             width: 0%;
             transition: width 0.3s ease;
         }
         .status {
             text-align: center;
-            color: var(--gray);
-            font-size: 0.95rem;
+            color: #888;
+            font-size: 0.9rem;
         }
         .info {
-            margin-top: 2rem;
-            font-size: 0.85rem;
-            color: var(--gray);
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: #666;
             text-align: center;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Python to EXE (with Bot Token)</h1>
+        <h1>Python to EXE Converter</h1>
 
         <form id="uploadForm">
             <label for="token">Bot Token (masked)</label>
-            <input type="password" id="token" name="token" required placeholder="Paste your Discord bot token here">
+            <input type="password" id="token" name="token" required placeholder="Paste your Discord bot token">
 
-            <label for="pyfile">Python Script (.py)</label>
-            <input type="file" id="pyfile" name="pyfile" accept=".py" required>
+            <!-- Source Code Viewer -->
+            <div class="source-container">
+                <div class="source-header">
+                    <span>main.py</span>
+                    <button type="button" class="view-btn" id="viewBtn">View Source Code</button>
+                </div>
+                <pre id="sourceCode">
+# Your bot code will appear here
+# Example:
+import discord
+from discord.ext import commands
 
-            <button type="submit" id="convertBtn">Convert to EXE</button>
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user}')
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send('Pong!')
+
+# Token is injected automatically
+bot.run(os.getenv("BOT_TOKEN"))
+                </pre>
+            </div>
+
+            <button type="submit" class="convert" id="convertBtn">Convert to EXE</button>
         </form>
 
         <div class="progress" id="progress">
@@ -123,29 +208,41 @@
         </div>
 
         <div class="info">
-            The token is embedded in the EXE. Keep it safe!
+            The token is securely embedded in the EXE. Source code is read-only.
         </div>
     </div>
 
     <script>
+        const viewBtn = document.getElementById('viewBtn');
+        const sourceCode = document.getElementById('sourceCode');
         const form = document.getElementById('uploadForm');
         const progress = document.getElementById('progress');
         const bar = document.getElementById('bar');
         const status = document.getElementById('status');
-        const btn = document.getElementById('convertBtn');
+        const convertBtn = document.getElementById('convertBtn');
 
+        // Toggle source code visibility
+        viewBtn.addEventListener('click', () => {
+            sourceCode.classList.toggle('show');
+            viewBtn.textContent = sourceCode.classList.contains('show') ? 'Hide Source' : 'View Source Code';
+        });
+
+        // Submit form
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!form.token.value.trim() || !form.pyfile.files[0]) return;
+            if (!form.token.value.trim()) {
+                alert('Please enter bot token');
+                return;
+            }
 
             progress.style.display = 'block';
             bar.style.width = '0%';
-            status.textContent = 'Uploading…';
-            btn.disabled = true;
+            status.textContent = 'Building EXE…';
+            convertBtn.disabled = true;
 
             const data = new FormData();
             data.append('token', form.token.value);
-            data.append('pyfile', form.pyfile.files[0]);
+            data.append('source', sourceCode.textContent);
 
             try {
                 const resp = await fetch('/api/convert', {
@@ -159,7 +256,7 @@
                     return;
                 }
 
-                const contentLength = +resp.headers.get('Content-Length');
+                const contentLength = +resp.headers.get('Content-Length') || 0;
                 const filename = resp.headers.get('X-Filename') || 'bot.exe';
 
                 const reader = resp.body.getReader();
@@ -171,7 +268,7 @@
                     if (done) break;
                     chunks.push(value);
                     received += value.length;
-                    if (contentLength) {
+                    if (contentLength > 0) {
                         const percent = (received / contentLength) * 100;
                         bar.style.width = percent + '%';
                         status.textContent = `Downloading… ${Math.round(received / 1024)} KB`;
@@ -186,16 +283,15 @@
                 a.click();
                 URL.revokeObjectURL(url);
 
-                status.textContent = 'Done! EXE downloaded.';
+                status.textContent = 'EXE downloaded!';
                 setTimeout(() => {
                     progress.style.display = 'none';
-                    btn.disabled = false;
-                }, 2000);
+                    convertBtn.disabled = false;
+                }, 1500);
 
             } catch (err) {
                 alert('Network error: ' + err.message);
-            } finally {
-                btn.disabled = false;
+                convertBtn.disabled = false;
             }
         });
     </script>
