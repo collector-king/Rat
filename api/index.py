@@ -1,34 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download to get hackked</title>
-    <style>
-        body {
-            background-color: black;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .download-btn {
-            background-color: red;
-            color: white;
-            padding: 15px 30px;
-            text-decoration: none;
-            font-family: Arial, sans-serif;
-            font-size: 18px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .download-btn:hover {
-            background-color: darkred;
-        }
-    </style>
-</head>
-<body>
-    <a href="https://github.com/collector-king/Rat/raw/refs/heads/main/Let%20me%20Be%20Hacked.exe" class="download-btn" download>Hack me</a>
-</body>
-</html>
+import os
+from flask import Flask
+from pathlib import Path
+
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    html_path = Path(__file__).parent.parent / "templates" / "index.html"
+    if html_path.exists():
+        return html_path.read_text(encoding="utf-8")
+    return "index.html not found", 404
+
+# Vercel serverless handler
+def handler(request):
+    return app(request.environ, lambda *args, **kwargs: None)
+
+if __name__ == "__main__":
+    app.run()
