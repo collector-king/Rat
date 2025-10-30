@@ -1,3 +1,4 @@
+# api/index.py
 import os
 import shutil
 import subprocess
@@ -7,16 +8,23 @@ from pathlib import Path
 from flask import Flask, request, abort, Response, stream_with_context
 from werkzeug.utils import secure_filename
 
+# Create Flask app
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB max
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
 
-# ----------------------------------------------------------------------
+# -----------------------------
+# Serve HTML
+# -----------------------------
 @app.route("/", methods=["GET"])
 def index():
     html_path = Path(__file__).parent.parent / "templates" / "index.html"
+    if not html_path.exists():
+        return "HTML not found", 404
     return html_path.read_text(encoding="utf-8")
 
-# ----------------------------------------------------------------------
+# -----------------------------
+# Inject token into wrapper
+# -----------------------------
 def inject_token(py_path: Path, token: str, wrapper_path: Path):
     wrapper = f"""\
 import os
@@ -28,7 +36,9 @@ runpy.run_path(r"{py_path}", run_name="__main__")
 """
     wrapper_path.write_text(wrapper, encoding="utf-8")
 
-# ----------------------------------------------------------------------
+# -----------------------------
+# Convert endpoint
+# -----------------------------
 @app.route("/api/convert", methods=["POST"])
 def convert():
     token = request.form.get("token", "").strip()
@@ -39,6 +49,7 @@ def convert():
     if not file or not file.filename.endswith(".py"):
         abort(400, "Valid .py file required")
 
+    # Use /tmp (only writable dir on Vercel)
     work_dir = Path("/tmp") / str(uuid.uuid4())
     work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -68,7 +79,9 @@ def convert():
 
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print("PyInstaller stdout:", result.stdout)
     except subprocess.CalledProcessError as e:
+        print("PyInstaller error:", e.stderr)
         shutil.rmtree(work_dir, ignore_errors=True)
         abort(500, f"Build failed: {e.stderr[:200]}")
 
@@ -81,6 +94,7 @@ def convert():
         with open(exe_path, "rb") as f:
             while chunk := f.read(8192):
                 yield chunk
+        # Cleanup after download
         shutil.rmtree(work_dir, ignore_errors=True)
 
     response = Response(stream_with_context(generate()), mimetype="application/octet-stream")
@@ -88,68 +102,11 @@ def convert():
     response.headers["X-Filename"] = exe_name
     return response
 
-# ----------------------------------------------------------------------
-# Vercel handler
-# ----------------------------------------------------------------------
-def handler(event, context=None):
-    from wsgiref.handlers import CGIHandler
-    import io
+# -----------------------------
+# NO handler() function!
+# Just export the Flask app
+# -----------------------------
 
-    class LambdaWSGI:
-        def __init__(self, app):
-            self.app = app
-
-        def __call__(self, event, context):
-            body = event.get('body', b'')
-            if event.get('isBase64Encoded', False):
-                import base64
-                body = base64.b64decode(body)
-
-            environ = {
-                'REQUEST_METHOD': event['httpMethod'],
-                'SCRIPT_NAME': '',
-                'PATH_INFO': event['path'],
-                'QUERY_STRING': event['queryStringParameters'] or '',
-                'SERVER_NAME': event['headers'].get('host', 'lambda'),
-                'SERVER_PORT': event['headers'].get('x-forwarded-port', '80'),
-                'HTTP_HOST': event['headers'].get('host', 'lambda'),
-                'CONTENT_TYPE': event['headers'].get('content-type', ''),
-                'CONTENT_LENGTH': str(len(body)),
-                'wsgi.input': io.BytesIO(body),
-                'wsgi.version': (1, 0),
-                'wsgi.url_scheme': event['headers'].get('x-forwarded-proto', 'http'),
-                'wsgi.multithread': False,
-                'wsgi.multiprocess': True,
-                'wsgi.run_once': True,
-            }
-
-            for key, value in event['headers'].items():
-                key = key.replace('-', '_').upper()
-                if key not in ('CONTENT_TYPE', 'CONTENT_LENGTH'):
-                    environ[f'HTTP_{key}'] = value
-
-            response_parts = []
-            def start_response(status, headers):
-                response_parts.append(status)
-                response_parts.append(headers)
-                return lambda x: x
-
-            result = self.app(environ, start_response)
-            body = b''.join(result)
-
-            status = response_parts[0]
-            headers = response_parts[1]
-
-            return {
-                'statusCode': int(status.split()[0]),
-                'headers': dict(headers),
-                'body': body,
-                'isBase64Encoded': False
-            }
-
-    return LambdaWSGI(app)(event, context)
-
-# For local testing
+# For local testing only
 if __name__ == "__main__":
-    from wsgiref.simple_server import make_server
-    make_server('127.0.0.1', 5000, app).serve_forever()
+    app.run(debug=True, port=5000)
