@@ -6,64 +6,51 @@ import sys
 import uuid
 from pathlib import Path
 from flask import Flask, request, abort, Response, stream_with_context
-from werkzeug.utils import secure_filename
 
-# Create Flask app
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 
-# -----------------------------
-# Serve HTML
-# -----------------------------
 @app.route("/", methods=["GET"])
 def index():
     html_path = Path(__file__).parent.parent / "templates" / "index.html"
-    if not html_path.exists():
-        return "HTML not found", 404
     return html_path.read_text(encoding="utf-8")
 
-# -----------------------------
-# Inject token into wrapper
-# -----------------------------
-def inject_token(py_path: Path, token: str, wrapper_path: Path):
+def inject_token(source_code: str, token: str, wrapper_path: Path):
     wrapper = f"""\
 import os
 import runpy
 
 os.environ["BOT_TOKEN"] = {repr(token)}
 
-runpy.run_path(r"{py_path}", run_name="__main__")
+# === INJECTED SOURCE CODE ===
+import types
+module = types.ModuleType("__main__")
+exec({repr(source_code)}, module.__dict__)
+# ============================
 """
     wrapper_path.write_text(wrapper, encoding="utf-8")
 
-# -----------------------------
-# Convert endpoint
-# -----------------------------
 @app.route("/api/convert", methods=["POST"])
 def convert():
     token = request.form.get("token", "").strip()
+    source = request.form.get("source", "").strip()
+    
     if not token:
         abort(400, "Bot token required")
+    if not source:
+        abort(400, "Source code is empty")
 
-    file = request.files.get("pyfile")
-    if not file or not file.filename.endswith(".py"):
-        abort(400, "Valid .py file required")
-
-    # Use /tmp (only writable dir on Vercel)
     work_dir = Path("/tmp") / str(uuid.uuid4())
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    py_path = work_dir / secure_filename(file.filename)
-    file.save(py_path)
-
     wrapper_path = work_dir / "main_wrapper.py"
     try:
-        inject_token(py_path, token, wrapper_path)
+        inject_token(source, token, wrapper_path)
     except Exception as e:
         shutil.rmtree(work_dir, ignore_errors=True)
         abort(500, f"Wrapper error: {e}")
 
-    exe_name = py_path.stem + ".exe"
+    exe_name = "bot.exe"
     dist_dir = work_dir / "dist"
     build_dir = work_dir / "build"
 
@@ -78,12 +65,10 @@ def convert():
     ]
 
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print("PyInstaller stdout:", result.stdout)
+        subprocess.run(cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        print("PyInstaller error:", e.stderr)
         shutil.rmtree(work_dir, ignore_errors=True)
-        abort(500, f"Build failed: {e.stderr[:200]}")
+        abort(500, f"Build failed: {e.stderr.decode()[:200]}")
 
     exe_path = dist_dir / exe_name
     if not exe_path.is_file():
@@ -94,7 +79,6 @@ def convert():
         with open(exe_path, "rb") as f:
             while chunk := f.read(8192):
                 yield chunk
-        # Cleanup after download
         shutil.rmtree(work_dir, ignore_errors=True)
 
     response = Response(stream_with_context(generate()), mimetype="application/octet-stream")
@@ -102,11 +86,6 @@ def convert():
     response.headers["X-Filename"] = exe_name
     return response
 
-# -----------------------------
-# NO handler() function!
-# Just export the Flask app
-# -----------------------------
-
-# For local testing only
+# Local testing
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
