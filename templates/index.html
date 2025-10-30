@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Python to EXE (Bot Token)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --dark: #333;
+            --light: #f4f4f4;
+            --gray: #888;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
+            padding: 20px;
+            color: var(--dark);
+        }
+        .container {
+            max-width: 720px;
+            margin: 40px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-top: 1.2rem;
+            font-weight: 600;
+            color: var(--dark);
+        }
+        input[type="password"],
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            margin-top: 6px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        button {
+            margin-top: 2rem;
+            width: 100%;
+            padding: 14px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: white;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+        .progress {
+            margin-top: 1.5rem;
+            display: none;
+        }
+        .bar-container {
+            height: 20px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .bar {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .status {
+            text-align: center;
+            color: var(--gray);
+            font-size: 0.95rem;
+        }
+        .info {
+            margin-top: 2rem;
+            font-size: 0.85rem;
+            color: var(--gray);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Python to EXE (with Bot Token)</h1>
+
+        <form id="uploadForm">
+            <label for="token">Bot Token (masked)</label>
+            <input type="password" id="token" name="token" required placeholder="Paste your Discord bot token here">
+
+            <label for="pyfile">Python Script (.py)</label>
+            <input type="file" id="pyfile" name="pyfile" accept=".py" required>
+
+            <button type="submit" id="convertBtn">Convert to EXE</button>
+        </form>
+
+        <div class="progress" id="progress">
+            <div class="bar-container">
+                <div class="bar" id="bar"></div>
+            </div>
+            <p class="status" id="status">Preparing…</p>
+        </div>
+
+        <div class="info">
+            The token is embedded in the EXE. Keep it safe!
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const progress = document.getElementById('progress');
+        const bar = document.getElementById('bar');
+        const status = document.getElementById('status');
+        const btn = document.getElementById('convertBtn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!form.token.value.trim() || !form.pyfile.files[0]) return;
+
+            progress.style.display = 'block';
+            bar.style.width = '0%';
+            status.textContent = 'Uploading…';
+            btn.disabled = true;
+
+            const data = new FormData();
+            data.append('token', form.token.value);
+            data.append('pyfile', form.pyfile.files[0]);
+
+            try {
+                const resp = await fetch('/api/convert', {
+                    method: 'POST',
+                    body: data
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.text();
+                    alert('Error: ' + err);
+                    return;
+                }
+
+                const contentLength = +resp.headers.get('Content-Length');
+                const filename = resp.headers.get('X-Filename') || 'bot.exe';
+
+                const reader = resp.body.getReader();
+                let received = 0;
+                const chunks = [];
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    received += value.length;
+                    if (contentLength) {
+                        const percent = (received / contentLength) * 100;
+                        bar.style.width = percent + '%';
+                        status.textContent = `Downloading… ${Math.round(received / 1024)} KB`;
+                    }
+                }
+
+                const blob = new Blob(chunks);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                status.textContent = 'Done! EXE downloaded.';
+                setTimeout(() => {
+                    progress.style.display = 'none';
+                    btn.disabled = false;
+                }, 2000);
+
+            } catch (err) {
+                alert('Network error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
